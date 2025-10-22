@@ -25,11 +25,11 @@
 
 ## Current issues & blockers
 
-> *Living list.* Use checkboxes; Move completed items into the **What’s been done** section below.
+> Move completed items into the **What’s been done** section below.
 
-* [ ] Need to verify Net Capacitance for I2C SDA & SCL bus
-* [ ] Need to verify Pull Up Resistors for I2C bus
-* [ ] Need to Configure Alert# PIN
+* Need to verify Net Capacitance for I2C SDA & SCL bus
+* Need to verify Pull Up Resistors for I2C bus
+* Need to Configure Alert# PIN
 
 > Tip: You can also track these as GitHub Issues and link them here.
 
