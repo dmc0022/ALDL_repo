@@ -9,7 +9,7 @@
 			(exclude_from_sim no)
 			(in_bom yes)
 			(on_board yes)
-			(property "Reference" "U"
+			(property "Reference" "U4"
 				(at -24.13 60.706 0)
 				(effects
 					(font
@@ -19,11 +19,12 @@
 				)
 			)
 			(property "Value" "LCD"
-				(at -9.144 60.706 0)
+				(at -8.89 41.9101 0)
 				(effects
 					(font
 						(size 1.27 1.27)
 					)
+					(justify left)
 				)
 			)
 			(property "Footprint" "Display:LCD-016N002L"
@@ -339,7 +340,7 @@
 					)
 				)
 				(pin power_in line
-					(at -17.78 21.59 90)
+					(at -15.24 24.13 90)
 					(length 2.54)
 					(name "VCC"
 						(effects
@@ -379,9 +380,49 @@
 			(embedded_fonts no)
 		)
 	)
+	(wire
+		(pts
+			(xy 31.75 85.09) (xy 63.5 85.09)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "129c904a-9fdf-41fc-bd93-d3f9ee1b4820")
+	)
+	(wire
+		(pts
+			(xy 76.2 87.63) (xy 76.2 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d9c4207e-34df-4208-9714-39836984c5d9")
+	)
+	(wire
+		(pts
+			(xy 31.75 87.63) (xy 76.2 87.63)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dcfa0327-9e04-4ac0-bdea-6fff652081f5")
+	)
+	(wire
+		(pts
+			(xy 63.5 85.09) (xy 63.5 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ded4b0a4-f185-411b-a68c-5791226d7a9f")
+	)
 	(hierarchical_label "GND"
 		(shape input)
-		(at 31.75 80.01 180)
+		(at 31.75 85.09 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -401,9 +442,9 @@
 		)
 		(uuid "9512e94e-9b39-4929-bd93-b7f12892d56b")
 	)
-	(hierarchical_label "3.3V"
+	(hierarchical_label "5V"
 		(shape input)
-		(at 31.75 17.78 180)
+		(at 31.75 87.63 180)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -425,7 +466,7 @@
 	)
 	(symbol
 		(lib_id "Symbols:LCD240X320")
-		(at 90.17 97.79 0)
+		(at 91.44 90.17 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -434,7 +475,7 @@
 		(fields_autoplaced yes)
 		(uuid "98e54bd4-db51-4d37-ad64-07d605b36a32")
 		(property "Reference" "U4"
-			(at 66.04 37.084 0)
+			(at 67.31 29.464 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -443,7 +484,7 @@
 			)
 		)
 		(property "Value" "LCD"
-			(at 81.28 55.8799 0)
+			(at 82.55 48.2599 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -452,7 +493,7 @@
 			)
 		)
 		(property "Footprint" "Display:LCD-016N002L"
-			(at 72.898 79.248 0)
+			(at 74.168 71.628 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -461,7 +502,7 @@
 			)
 		)
 		(property "Datasheet" "http://www.vishay.com/docs/37299/37299.pdf"
-			(at 60.198 116.586 0)
+			(at 61.468 108.966 0)
 			(do_not_autoplace yes)
 			(effects
 				(font
@@ -471,7 +512,7 @@
 			)
 		)
 		(property "Description" "LCD 12x2, 8 bit parallel bus, 3V or 5V VDD"
-			(at 61.214 114.808 0)
+			(at 62.484 107.188 0)
 			(do_not_autoplace yes)
 			(effects
 				(font
