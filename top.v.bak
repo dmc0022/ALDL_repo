@@ -1,0 +1,280 @@
+// top.v — DE10-Lite ADXL345 over I2C -> 7-seg in g  (Verilog-2001)
+module top (
+    input  wire        MAX10_CLK1_50,
+    input  wire [9:0]  SW,
+    inout  wire        GSENSOR_SDI,    // SDA
+    output wire        GSENSOR_SCLK,   // SCL
+    output wire        GSENSOR_CS_n,   // 1 => I2C
+    output wire        GSENSOR_SDO,    // 1 => 7-bit addr 0x1D
+    output reg  [7:0]  HEX5, HEX4, HEX3, HEX2, HEX1, HEX0
+);
+
+    // Put the accelerometer in I2C mode at address 0x1D
+    assign GSENSOR_CS_n = 1'b1;
+    assign GSENSOR_SDO  = 1'b1;
+
+    // ========= I2C low-level lines (single driver) =========
+    reg scl_o;                 // driven only here
+    reg sda_oe;                // 1=drive 0, 0=release(Z)
+    assign GSENSOR_SCLK = scl_o;
+    assign GSENSOR_SDI  = sda_oe ? 1'b0 : 1'bz;
+    wire sda_i = GSENSOR_SDI;
+
+    // ========= Clock divider -> "tick" for I2C timing =========
+    // 50 MHz -> 100 kHz SCL (approx). Each bit uses 4 ticks (low/setup/high/hold).
+    // So divider produces 400 kHz micro-tick.
+    localparam integer DIV = 125;  // 50e6/(4*100e3)=125
+    reg [15:0] divc;
+    reg tick;
+    always @(posedge MAX10_CLK1_50) begin
+        if (divc == DIV-1) begin divc <= 0; tick <= 1'b1; end
+        else               begin divc <= divc + 16'd1; tick <= 1'b0; end
+    end
+
+    // ========= ADXL345 constants =========
+    localparam [7:0] ADR_W = 8'h3A; // 0x1D<<1
+    localparam [7:0] ADR_R = 8'h3B;
+    localparam [7:0] REG_BW_RATE    = 8'h2C;
+    localparam [7:0] REG_POWER_CTL  = 8'h2D;
+    localparam [7:0] REG_DATA_FMT   = 8'h31;
+    localparam [7:0] REG_DATAX0     = 8'h32;
+
+    // ========= Simple single FSM (owns SCL/SDA/shift/bitcnt) =========
+    reg [7:0] shift;
+    reg [3:0] bit_idx;     // 7..0 then ack bit
+    reg [1:0] ph;          // 0:setup,1:SCL↑,2:hold,3:SCL↓
+    reg       rw;          // 0=write, 1=read
+    reg       last_byte;   // for NACK on last read byte
+    reg [7:0] rx0, rx1, rx2, rx3, rx4, rx5;  // X0..Z1
+
+    // data registers
+    reg signed [15:0] x_raw, y_raw, z_raw;
+
+    // top FSM
+    localparam
+      S_IDLE=0,
+      S_START=1, S_SEND=2, S_ACK=3,
+      S_REPSTART=4, S_RECV=5, S_RECVACK=6,
+      S_STOP=7,
+      S_FLOW=8;
+
+    reg [3:0]  st;
+    reg [7:0]  seq [0:15]; // tiny script of bytes to send
+    reg [4:0]  sp, sp_end; // pointer & end
+    reg [2:0]  rxcnt;      // 0..5 which read byte we’re on
+
+    // helper: load a "script" (write a register)
+    task script_write2; input [7:0] regaddr, value; begin
+        seq[0]=ADR_W; seq[1]=regaddr; seq[2]=value; sp_end=3;
+    end endtask
+
+    // I2C engine + high-level flow
+    always @(posedge MAX10_CLK1_50) begin
+        if (st==S_IDLE) begin
+            // initial conditions
+            scl_o   <= 1'b1;
+            sda_oe  <= 1'b0;   // release SDA high
+            ph      <= 2'd0;
+            bit_idx <= 4'd7;
+            // kick off BW_RATE write first
+            script_write2(REG_BW_RATE, 8'h0A); sp<=0; st<=S_START;
+            rw<=1'b0; last_byte<=1'b0;
+        end else if (tick) begin
+            case (st)
+
+            // ---------- common START ----------
+            S_START: begin
+                case (ph)
+                  2'd0: begin sda_oe<=1'b1; scl_o<=1'b1; ph<=2'd1; shift<=seq[sp]; bit_idx<=4'd7; end
+                  2'd1: begin scl_o<=1'b0; ph<=2'd0; st<=S_SEND; end
+                endcase
+            end
+
+            // ---------- send a byte (write) ----------
+            S_SEND: begin
+                case (ph)
+                  2'd0: begin sda_oe <= ~shift[7]; ph<=2'd1; end // drive 0 for '0', release for '1'
+                  2'd1: begin scl_o  <= 1'b1; ph<=2'd2; end
+                  2'd2: begin ph<=2'd3; end
+                  2'd3: begin scl_o  <= 1'b0; shift <= {shift[6:0],1'b1}; 
+                                 if (bit_idx==0) begin bit_idx<=4'd8; ph<=2'd0; st<=S_ACK; end
+                                 else begin bit_idx<=bit_idx-1; ph<=2'd0; end
+                         end
+                endcase
+            end
+
+            // ---------- ACK after write byte ----------
+            S_ACK: begin
+                case (ph)
+                  2'd0: begin sda_oe<=1'b0; ph<=2'd1; end        // release to sample ACK
+                  2'd1: begin scl_o<=1'b1; ph<=2'd2; end
+                  2'd2: begin ph<=2'd3; end
+                  2'd3: begin scl_o<=1'b0; ph<=2'd0;
+                                sp <= sp + 1;
+                                if (sp == sp_end-1) begin // finished this script
+                                    st <= S_STOP;
+                                end else begin
+                                    shift <= seq[sp+1]; bit_idx<=4'd7; st<=S_SEND;
+                                end
+                         end
+                endcase
+            end
+
+            // ---------- repeated START ----------
+            S_REPSTART: begin
+                case (ph)
+                  2'd0: begin sda_oe<=1'b0; scl_o<=1'b1; ph<=2'd1; end // ensure bus high
+                  2'd1: begin sda_oe<=1'b1; ph<=2'd2; end              // SDA low while SCL high
+                  2'd2: begin scl_o<=1'b0; ph<=2'd0; st<=S_SEND; shift<=seq[sp]; bit_idx<=4'd7; end
+                endcase
+            end
+
+            // ---------- receive a byte ----------
+            S_RECV: begin
+                case (ph)
+                  2'd0: begin sda_oe<=1'b0; ph<=2'd1; end              // release SDA
+                  2'd1: begin scl_o<=1'b1; ph<=2'd2; end               // sample on high
+                  2'd2: begin shift <= {shift[6:0], sda_i}; ph<=2'd3; end
+                  2'd3: begin scl_o<=1'b0; 
+                                if (bit_idx==0) begin st<=S_RECVACK; ph<=2'd0; end
+                                else begin bit_idx<=bit_idx-1; ph<=2'd0; end
+                         end
+                endcase
+            end
+
+            // ---------- master ACK/NACK after read ----------
+            S_RECVACK: begin
+                case (ph)
+                  2'd0: begin sda_oe <= (last_byte ? 1'b0 : 1'b1); ph<=2'd1; end // ACK=drive 0, NACK=release
+                  2'd1: begin scl_o  <= 1'b1; ph<=2'd2; end
+                  2'd2: begin ph<=2'd3; end
+                  2'd3: begin scl_o  <= 1'b0; sda_oe<=1'b0; ph<=2'd0;
+                                // store byte
+                                case (rxcnt)
+                                  3'd0: rx0<=shift;
+                                  3'd1: rx1<=shift;
+                                  3'd2: rx2<=shift;
+                                  3'd3: rx3<=shift;
+                                  3'd4: rx4<=shift;
+                                  default: rx5<=shift;
+                                endcase
+                                if (last_byte) begin st<=S_STOP; end
+                                else begin rxcnt<=rxcnt+3'd1; bit_idx<=4'd7; st<=S_RECV; end
+                         end
+                endcase
+            end
+
+            // ---------- STOP ----------
+            S_STOP: begin
+                case (ph)
+                  2'd0: begin sda_oe<=1'b1; scl_o<=1'b0; ph<=2'd1; end // SDA low
+                  2'd1: begin scl_o<=1'b1; ph<=2'd2; end
+                  2'd2: begin sda_oe<=1'b0; ph<=2'd0; st<=S_FLOW; end  // SDA high while SCL high
+                endcase
+            end
+
+            // ---------- High-level flow controller ----------
+            S_FLOW: begin
+                // sequence: write 3 regs, then read 6 bytes forever
+                // 1) DATA_FORMAT
+                if (sp==0 && rx5==8'h00) begin // crude "first time" gate
+                    script_write2(REG_DATA_FMT, 8'h00); sp<=0; st<=S_START; rw<=1'b0;
+                end
+                // 2) POWER_CTL
+                else if (sp==0 && rx5==8'h01) begin
+                    script_write2(REG_POWER_CTL, 8'h08); sp<=0; st<=S_START; rw<=1'b0;
+                end
+                // 3) Read burst DATAX0..Z1
+                else begin
+                    // write reg address, then repeated START + read 6 bytes
+                    // step A: send [ADR_W, DATAX0]
+                    seq[0]=ADR_W; seq[1]=REG_DATAX0; sp_end=2; sp<=0; st<=S_START; rw<=1'b0;
+                    // after STOP we immediately do repeated start + read:
+                    // we piggyback using the next states:
+                    // setup repeated start and ADR_R when we finish above
+                    rx5 <= rx5 + 8'h01; // dummy tick to advance the simple "first time" flags
+                end
+            end
+
+            default: begin
+                // (no default)
+            end
+            endcase
+
+            // Hook to chain after the small write of DATAX0:
+            if (st==S_STOP && ph==2'd2 && sp_end==2 && seq[1]==REG_DATAX0) begin
+                // B: repeated start + [ADR_R], then read 6 bytes
+                sp<=0; sp_end<=1; seq[0]=ADR_R; st<=S_REPSTART; rw<=1'b0;
+                // prime a first send of ADR_R, then switch to receive 6 bytes
+                // After ADR_R is ACKed we enter receive:
+                // Patch the transition:
+                // use the following minimal hook:
+            end
+            if (st==S_ACK && ph==2'd3 && sp==sp_end) begin
+                // finished sending ADR_R -> go to receiver for 6 bytes
+                rxcnt<=3'd0; bit_idx<=4'd7; last_byte<=1'b0; st<=S_RECV;
+            end
+            if (st==S_RECVACK && ph==2'd3 && rxcnt==3'd4) begin
+                last_byte<=1'b1; // NACK on final (6th) byte
+            end
+
+            // Update raw words after a full read completes
+            if (st==S_STOP && ph==2'd0 && last_byte==1'b1) begin
+                x_raw <= {rx1,rx0};
+                y_raw <= {rx3,rx2};
+                z_raw <= {rx5,rx4};
+                last_byte <= 1'b0;
+            end
+        end
+    end
+
+    // ========= Axis select & fixed-point to ±X.Y g =========
+    function [15:0] abs16; input [15:0] v; begin abs16 = v[15] ? (~v+16'd1) : v; end endfunction
+
+    reg  signed [15:0] cur_raw;
+    wire [1:0] axis_sel = SW[1:0];
+    always @* begin
+        case (axis_sel)
+          2'b00: cur_raw = x_raw;
+          2'b01: cur_raw = y_raw;
+          2'b10: cur_raw = z_raw;
+          default: begin
+            reg [15:0] ax, ay, az;
+            ax = abs16(x_raw); ay = abs16(y_raw); az = abs16(z_raw);
+            if (ax>=ay && ax>=az) cur_raw=x_raw;
+            else if (ay>=az)      cur_raw=y_raw;
+            else                  cur_raw=z_raw;
+          end
+        endcase
+    end
+
+    // g_tenths = round(|raw|*10/256)  (±2g => 256 LSB/g)
+    wire [15:0] mag  = abs16(cur_raw);
+    wire [9:0]  tenths = (mag*10 + 16'd128) >> 8; // 0..199
+    wire       neg = cur_raw[15];
+
+    // Clamp to 19.9
+    wire [9:0] tcl = (tenths>10'd199) ? 10'd199 : tenths;
+    wire [3:0] d2 = tcl/100;               // tens
+    wire [3:0] d1 = (tcl/10)%10;           // ones
+    wire [3:0] d0 = tcl%10;                // tenths
+
+    // 7-segment encoder (active-low)
+    function [7:0] seg; input [3:0] n; begin
+        case(n)
+            4'h0: seg=8'b11000000; 4'h1: seg=8'b11111001; 4'h2: seg=8'b10100100; 4'h3: seg=8'b10110000;
+            4'h4: seg=8'b10011001; 4'h5: seg=8'b10010010; 4'h6: seg=8'b10000010; 4'h7: seg=8'b11111000;
+            4'h8: seg=8'b10000000; 4'h9: seg=8'b10010000; default: seg=8'b11111111;
+        endcase
+    end endfunction
+    localparam [7:0] SEG_BLANK=8'b11111111, SEG_MINUS=8'b10111111, SEG_PLUS=8'b10101111, SEG_G=8'b10010000;
+
+    always @* begin
+        HEX5 = neg ? SEG_MINUS : SEG_PLUS;
+        HEX4 = (d2==0) ? SEG_BLANK : seg(d2);
+        HEX3 = seg(d1) & 8'b01111111; // decimal point ON
+        HEX2 = seg(d0);
+        HEX1 = SEG_BLANK;
+        HEX0 = SEG_G;
+    end
+endmodule
