@@ -159,7 +159,7 @@ module hub75_uahlogo (
                     if (!pixel_phase) begin
                         clk_out <= 0;
 
-                        // 🔥 IMPORTANT FIX: CLEAR FLAGS FIRST
+                        // CLEAR FLAGS FIRST
                         sprite_on_top = 0;
                         sprite_on_bot = 0;
 
@@ -241,5 +241,6 @@ module hub75_uahlogo (
     end
 
 endmodule
+
 
   
