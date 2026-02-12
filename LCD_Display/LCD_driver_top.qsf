@@ -1,0 +1,153 @@
+# -----------------------------------------------------------
+# Basic project setup
+# -----------------------------------------------------------
+set_global_assignment -name FAMILY "MAX 10"
+set_global_assignment -name DEVICE 10M50DAF484C6GES
+set_global_assignment -name TOP_LEVEL_ENTITY LCD_driver_top
+
+# -----------------------------------------------------------
+# Clock and reset
+# -----------------------------------------------------------
+# 50 MHz clock (MAX10_CLK1_50)
+set_location_assignment PIN_P11 -to clk_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50
+
+# Reset button (KEY0) — active low
+set_location_assignment PIN_B8 -to reset_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reset_n
+
+# -----------------------------------------------------------
+# LCD & backlight pins 
+# -----------------------------------------------------------
+# lcd_cs  -> AA9
+set_location_assignment PIN_AA9 -to lcd_cs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_cs
+
+# lcd_rst -> Y8
+set_location_assignment PIN_Y8 -to lcd_rst
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_rst
+
+# lcd_rs (D/C) -> AA5
+set_location_assignment PIN_AA5 -to lcd_rs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_rs
+
+# lcd_sck -> Y7
+set_location_assignment PIN_Y7 -to lcd_sck
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_sck
+
+# lcd_mosi -> AA8
+set_location_assignment PIN_AA8 -to lcd_mosi
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_mosi
+
+# bl_pwm -> AA7
+set_location_assignment PIN_AA7 -to bl_pwm
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to bl_pwm
+
+# sd_cs -> Y5
+set_location_assignment PIN_Y5 -to sd_cs
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_cs
+
+# -----------------------------------------------------------
+# Capactive Touch Pins 
+# -----------------------------------------------------------
+
+# CTP_INT  -> W9
+set_location_assignment PIN_W9 -to CTP_INT
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_INT
+
+# CTP_SDA  -> W10
+set_location_assignment PIN_W10 -to CTP_SDA
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_SDA
+
+# CTP_RST  -> AA6
+set_location_assignment PIN_AA6 -to CTP_RST
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_RST
+
+# CTP_SCL  -> V10
+set_location_assignment PIN_V10 -to CTP_SCL
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_SCL
+
+# -----------------------------------------------------------
+# LEDs
+# -----------------------------------------------------------
+
+# debug_led -> LEDR0 (PIN_A8)
+set_location_assignment PIN_A8 -to debug_led
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to debug_led
+
+# led_touch_y[3:0] -> LEDR1..LEDR4
+set_location_assignment PIN_A9 -to led_touch_y[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_touch_y[0]
+
+set_location_assignment PIN_A10 -to led_touch_y[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_touch_y[1]
+
+set_location_assignment PIN_B10 -to led_touch_y[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_touch_y[2]
+
+set_location_assignment PIN_D13 -to led_touch_y[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_touch_y[3]
+
+# led_paddle_x[3:0] -> LEDR5..LEDR8
+set_location_assignment PIN_C13 -to led_paddle_x[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_paddle_x[0]
+
+set_location_assignment PIN_E14 -to led_paddle_x[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_paddle_x[1]
+
+set_location_assignment PIN_D14 -to led_paddle_x[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_paddle_x[2]
+
+set_location_assignment PIN_A11 -to led_paddle_x[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to led_paddle_x[3]
+
+# HEX0 seven-seg digit 0 segments (HEX0[0]..HEX0[6])
+set_location_assignment PIN_C14 -to HEX0[0]
+set_location_assignment PIN_E15 -to HEX0[1]
+set_location_assignment PIN_C15 -to HEX0[2]
+set_location_assignment PIN_C16 -to HEX0[3]
+set_location_assignment PIN_E16 -to HEX0[4]
+set_location_assignment PIN_D17 -to HEX0[5]
+set_location_assignment PIN_C17 -to HEX0[6]
+
+# I/O standard (recommended to match the board doc)
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HEX0[6]
+
+
+
+
+
+
+set_global_assignment -name EDA_SIMULATION_TOOL "<None>"
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name LAST_QUARTUS_VERSION "23.1std.1 Lite Edition"
+set_global_assignment -name BOARD "Arrow MAX 10 DECA"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name VERILOG_FILE keypad_touch_decode.v
+set_global_assignment -name VERILOG_FILE keypad_renderer.v
+set_global_assignment -name VERILOG_FILE hex7seg.v
+set_global_assignment -name VERILOG_FILE tft_ili9341_spi_wrapper.v
+set_global_assignment -name VERILOG_FILE spi_master_byte.v
+set_global_assignment -name HEX_FILE breakout_icon_48x48_rgb565.hex
+set_global_assignment -name VERILOG_FILE tft_ili9341_patched.v
+set_global_assignment -name VERILOG_FILE LCD_driver_top_color_test.v
+set_global_assignment -name VERILOG_FILE gif_renderer.v
+set_global_assignment -name VERILOG_FILE font4x7.v
+set_global_assignment -name VERILOG_FILE breakout_renderer.v
+set_global_assignment -name VERILOG_FILE ft6336_touch.v
+set_global_assignment -name VERILOG_FILE image_rom.v
+set_global_assignment -name VERILOG_FILE tft_ili9341_spi.v
+set_global_assignment -name VERILOG_FILE tft_ili9341.v
+set_global_assignment -name VERILOG_FILE LCD_driver_top.v
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

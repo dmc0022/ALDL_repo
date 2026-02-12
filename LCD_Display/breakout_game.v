@@ -1,20 +1,24 @@
 // breakout_game.v
-// Breakout game logic with external game state control.
+// -----------------------------------------------------------------------------
+// Breakout game logic (physics + brick HP + score) driven by a STABLE time tick.
 //
-// New mechanic:
-//   * Bricks have hit points per row:
-//       rows 0-1 (top):    3 hits
-//       rows 2-3 (middle): 2 hits
-//       rows 4-5 (bottom): 1 hit
-//   * A brick is removed (bricks_alive bit cleared) when its HP reaches 0.
-//   * Score increments only when a brick is destroyed (here: +5 per brick).
+// Why this refactor matters:
+//   Previously, “smoothness” could accidentally depend on rendering timing
+//   (which can jitter if SPI stalls or pixel cadence changes).
+//   This version updates game state on a fixed-rate tick derived from clk,
+//   so the ball/paddle motion stays consistent regardless of display SPI speed.
 //
-// Other behavior:
-//   * Geometry matches renderer (bricks 32x9; paddle sprite 32 wide,
-//     physics 40 wide).
-//   * Ball moves 1 pixel per tick (vx,vy in {-1,0,+1}).
-//   * Tile-based brick collision using ball center.
-//   * Paddle hit angle changes based on where the ball strikes.
+// Brick mechanic:
+//   - Rows 0..1: 3 hits
+//   - Rows 2..3: 2 hits
+//   - Rows 4..5: 1 hit
+//   - Score +5 when a brick is destroyed
+//
+// Notes:
+//   - This module does NOT depend on framebufferClk or renderer scan counters.
+//   - game_run freezes updates (tick still runs but no state changes).
+//   - ball_lost latches until new_game/reset.
+// -----------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
@@ -46,96 +50,77 @@ module breakout_game #(
     output reg         ball_lost     // 1 when ball passes paddle (latched until new_game/reset)
 );
 
-    // Must match renderer vertically
-    localparam HUD_H      = 24;
-
-    // Paddle geometry:
-    //  - Renderer draws 32px-wide sprite.
-    //  - Physics uses 40px width to make hits a bit easier.
-    localparam PADDLE_W   = 40;
-    localparam PADDLE_H   = 9;
-    localparam PADDLE_Y   = GAME_H - 30;
-
-    // Ball geometry
-    localparam BALL_SIZE  = 8;
-
-    // Brick layout (match breakout_renderer for position/size)
-    localparam BRICK_ROWS   = 6;
-    localparam BRICK_COLS   = 8;
-    localparam BRICK_W      = 32;
-    localparam BRICK_H      = 9;
-    localparam BRICK_X_SP   = 3;
-    localparam BRICK_Y_SP   = 4;
-    localparam BRICK_X0     = 5;
-    localparam BRICK_Y0     = HUD_H + 8;
-
-    // Game tick
-    localparam integer TICK_HZ   = 120;
-    localparam integer TICK_DIV  = CLK_FREQ_HZ / TICK_HZ;
-    localparam integer TICK_W    = $clog2(TICK_DIV);
+    // -------------------------------------------------------------------------
+    // Tunable game tick rate
+    // -------------------------------------------------------------------------
+    localparam integer TICK_HZ  = 60; // change to 120 if you want faster updates
+    localparam integer TICK_DIV = (CLK_FREQ_HZ / TICK_HZ);
+    localparam integer TICK_W   = $clog2(TICK_DIV);
 
     reg [TICK_W-1:0] tick_cnt;
-    reg              game_tick;
+    reg              game_tick;   // 1-cycle pulse
 
-    // Ball velocity in pixels per tick (signed, range -2..+2 but we use -1..+1)
-    reg signed [3:0] ball_vx;
-    reg signed [3:0] ball_vy;
-
-    // Per-brick hit points (2 bits: up to 3 hits)
-    reg [1:0] brick_hp [0:BRICK_ROWS*BRICK_COLS-1];
-
-    // Scratch integers used inside the always block
-    integer nx, ny;
-    integer paddle_left, paddle_right;
-    integer hit_pos;
-    integer bcx, bcy;          // new ball center x/y
-    integer bcx_old, bcy_old;  // old ball center x/y
-    integer brick_row, brick_col;
-    integer brick_idx;
-    integer brick_x_start, brick_y_start;
-    integer bricks_y_end;
-    integer bricks_x_end;
-    integer desired_paddle;
-
-    integer r, c, idx;         // for init loops
-
-    // ----------------------------------------------------------------
-    // Create a slower game_tick
-    // ----------------------------------------------------------------
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
-            tick_cnt  <= 0;
+            tick_cnt  <= {TICK_W{1'b0}};
             game_tick <= 1'b0;
         end else begin
             if (tick_cnt == TICK_DIV-1) begin
-                tick_cnt  <= 0;
+                tick_cnt  <= {TICK_W{1'b0}};
                 game_tick <= 1'b1;
             end else begin
-                tick_cnt  <= tick_cnt + 1'b1;
+                tick_cnt  <= tick_cnt + {{(TICK_W-1){1'b0}},1'b1};
                 game_tick <= 1'b0;
             end
         end
     end
 
-    // ----------------------------------------------------------------
-    // Helper: init ball & bricks (BUT NOT score)
-    // ----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Game geometry (match your renderer assumptions)
+    // -------------------------------------------------------------------------
+    localparam integer HUD_H       = 24;
+
+    localparam integer BRICK_ROWS  = 6;
+    localparam integer BRICK_COLS  = 8;
+
+    localparam integer BRICK_W     = 32;
+    localparam integer BRICK_H     = 9;
+    localparam integer BRICK_X_SP  = 3;
+    localparam integer BRICK_Y_SP  = 4;
+    localparam integer BRICK_X0    = 5;
+    localparam integer BRICK_Y0    = HUD_H + 8;
+
+    localparam integer PADDLE_W    = 32;
+    localparam integer PADDLE_H    = 9;
+    localparam integer PADDLE_Y    = GAME_H - 30;
+
+    localparam integer BALL_SIZE   = 8;
+
+    // -------------------------------------------------------------------------
+    // State: ball velocity and brick HP
+    // -------------------------------------------------------------------------
+    reg  signed [3:0] ball_vx;
+    reg  signed [3:0] ball_vy;
+
+    reg  [1:0] brick_hp [0:47]; // 2 bits is enough for 0..3 hits
+
+    integer r, c, idx;
+
+    // -------------------------------------------------------------------------
+    // Helper: init ball + bricks (but not score)
+    // -------------------------------------------------------------------------
     task init_ball_and_bricks;
     begin
         ball_x_pix   = GAME_W/2 - BALL_SIZE/2;
         ball_y_pix   = PADDLE_Y - 16;
-        ball_vx      = 4'sd1;        // slight diagonal
-        ball_vy      = -4'sd1;       // up
+        ball_vx      = 4'sd3;        // slight diagonal
+        ball_vy      = -4'sd2;       // up
         ball_lost    = 1'b0;
 
-        // Initialize brick HP and alive bits by row
         for (r = 0; r < BRICK_ROWS; r = r + 1) begin
             for (c = 0; c < BRICK_COLS; c = c + 1) begin
                 idx = r*BRICK_COLS + c;
 
-                // Top rows (0,1): 3 hits
-                // Middle rows (2,3): 2 hits
-                // Bottom rows (4,5): 1 hit
                 if (r < 2)
                     brick_hp[idx] = 2'd3;
                 else if (r < 4)
@@ -149,99 +134,130 @@ module breakout_game #(
     end
     endtask
 
-    // ----------------------------------------------------------------
-    // Game state update
-    // ----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Main update (ONLY on game_tick)
+    // -------------------------------------------------------------------------
+    integer desired_paddle;
+
+    integer bricks_y_end;
+    integer bricks_x_end;
+
+    integer nx, ny;              // proposed next ball position (signed int)
+    integer bcx_old, bcy_old;    // old ball center
+    integer bcx, bcy;            // new ball center
+
+    integer paddle_left;
+    integer paddle_right;
+    integer hit_pos;
+
+    integer brick_col, brick_row;
+    integer brick_x_start, brick_y_start;
+    integer brick_idx;
+
+    // "next" versions of velocity so we can update cleanly
+    reg signed [3:0] vx_next;
+    reg signed [3:0] vy_next;
+
+    // flags
+    reg hit_any_brick;
+
     always @(posedge clk or negedge reset_n) begin
         if (!reset_n) begin
-            // full reset
-            paddle_x = GAME_W/2;
-            score    = 10'd0;
+            paddle_x <= GAME_W/2;
+            score    <= 10'd0;
             init_ball_and_bricks();
         end else if (new_game) begin
-            // new game: reset score & ball/bricks, keep paddle position
-            score = 10'd0;
+            score <= 10'd0;
             init_ball_and_bricks();
         end else if (game_tick && game_run && !ball_lost) begin
-
-            // ---------------- Paddle from target (touch) ----------------
+            // -----------------------------------------------------------------
+            // 1) Paddle follows target (clamped)
+            // -----------------------------------------------------------------
             desired_paddle = paddle_target_x;
 
-            // Clamp so paddle stays fully on screen
-            if (desired_paddle < PADDLE_W/2)
-                desired_paddle = PADDLE_W/2;
-            else if (desired_paddle > GAME_W-1 - PADDLE_W/2)
-                desired_paddle = GAME_W-1 - PADDLE_W/2;
+            if (desired_paddle < (PADDLE_W/2))
+                desired_paddle = (PADDLE_W/2);
+            else if (desired_paddle > (GAME_W-1 - (PADDLE_W/2)))
+                desired_paddle = (GAME_W-1 - (PADDLE_W/2));
 
-            paddle_x = desired_paddle[8:0];
+            paddle_x <= desired_paddle[8:0];
 
-            // Precompute some boundary extents for bricks
-            bricks_y_end = BRICK_Y0 + BRICK_ROWS*(BRICK_H + BRICK_Y_SP);
-            bricks_x_end = BRICK_X0 + BRICK_COLS*(BRICK_W + BRICK_X_SP);
+            // -----------------------------------------------------------------
+            // 2) Compute next ball position (start with current velocity)
+            // -----------------------------------------------------------------
+            vx_next = ball_vx;
+            vy_next = ball_vy;
 
-            // Compute proposed next ball position (1 pixel per tick)
             nx = $signed(ball_x_pix) + $signed(ball_vx);
             ny = $signed(ball_y_pix) + $signed(ball_vy);
 
-            // Old center (before move) and new center (after move)
             bcx_old = ball_x_pix + BALL_SIZE/2;
             bcy_old = ball_y_pix + BALL_SIZE/2;
             bcx     = nx + BALL_SIZE/2;
             bcy     = ny + BALL_SIZE/2;
 
-            // ---------------- Walls (left/right) ------------------------
+            // Precompute brick bounds for quick rejection
+            bricks_y_end = BRICK_Y0 + BRICK_ROWS*(BRICK_H + BRICK_Y_SP);
+            bricks_x_end = BRICK_X0 + BRICK_COLS*(BRICK_W + BRICK_X_SP);
+
+            // -----------------------------------------------------------------
+            // 3) Wall collisions (left/right)
+            // -----------------------------------------------------------------
             if (nx <= 0) begin
                 nx      = 0;
-                ball_vx = -ball_vx;
-                nx      = $signed(ball_x_pix) + $signed(ball_vx);
+                vx_next = -vx_next;
+                nx      = $signed(ball_x_pix) + $signed(vx_next);
                 bcx     = nx + BALL_SIZE/2;
-            end else if (nx >= GAME_W - BALL_SIZE) begin
-                nx      = GAME_W - BALL_SIZE;
-                ball_vx = -ball_vx;
-                nx      = $signed(ball_x_pix) + $signed(ball_vx);
+            end else if (nx >= (GAME_W - BALL_SIZE)) begin
+                nx      = (GAME_W - BALL_SIZE);
+                vx_next = -vx_next;
+                nx      = $signed(ball_x_pix) + $signed(vx_next);
                 bcx     = nx + BALL_SIZE/2;
             end
 
-            // ---------------- Top HUD boundary --------------------------
+            // -----------------------------------------------------------------
+            // 4) Top HUD boundary
+            // -----------------------------------------------------------------
             if (ny <= HUD_H) begin
                 ny      = HUD_H;
-                ball_vy = -ball_vy;
-                ny      = $signed(ball_y_pix) + $signed(ball_vy);
+                vy_next = -vy_next;
+                ny      = $signed(ball_y_pix) + $signed(vy_next);
                 bcy     = ny + BALL_SIZE/2;
             end
 
-            // ---------------- Paddle collision --------------------------
-            paddle_left  = paddle_x - (PADDLE_W/2);
-            paddle_right = paddle_x + (PADDLE_W/2);
+            // -----------------------------------------------------------------
+            // 5) Paddle collision (only when moving downward)
+            // -----------------------------------------------------------------
+            paddle_left  = desired_paddle - (PADDLE_W/2);
+            paddle_right = desired_paddle + (PADDLE_W/2);
 
-            // Only check when ball moving downward
-            if (ball_vy > 0) begin
-                // Did we cross the paddle Y band?
+            if (vy_next > 0) begin
                 if ( (ball_y_pix + BALL_SIZE <= PADDLE_Y) &&
                      (ny + BALL_SIZE >= PADDLE_Y) ) begin
 
-                    // Is ball horizontally over the paddle?
                     if (bcx >= paddle_left && bcx <= paddle_right) begin
-                        // Bounce off paddle: always up
                         ny      = PADDLE_Y - BALL_SIZE;
-                        ball_vy = -4'sd1;
+                        vy_next = -4'sd1;
 
-                        // Change horizontal angle based on hit position
-                        hit_pos = bcx - paddle_left;  // 0..PADDLE_W-1
+                        hit_pos = bcx - paddle_left; // 0..PADDLE_W
 
-                        if      (hit_pos < (PADDLE_W/5))          ball_vx = -4'sd1; // far left
-                        else if (hit_pos < (2*PADDLE_W/5))        ball_vx = -4'sd1; // mid-left
-                        else if (hit_pos < (3*PADDLE_W/5))        ball_vx =  4'sd0; // center
-                        else if (hit_pos < (4*PADDLE_W/5))        ball_vx =  4'sd1; // mid-right
-                        else                                      ball_vx =  4'sd1; // far right
+                        if      (hit_pos < (PADDLE_W/5))   vx_next = -4'sd1;
+                        else if (hit_pos < (2*PADDLE_W/5)) vx_next = -4'sd1;
+                        else if (hit_pos < (3*PADDLE_W/5)) vx_next =  4'sd0;
+                        else if (hit_pos < (4*PADDLE_W/5)) vx_next =  4'sd1;
+                        else                               vx_next =  4'sd1;
 
-                        ny  = $signed(ball_y_pix) + $signed(ball_vy);
+                        ny  = $signed(ball_y_pix) + $signed(vy_next);
                         bcy = ny + BALL_SIZE/2;
                     end
                 end
             end
 
-            // ---------------- Brick collision (grid-based) --------------
+            // -----------------------------------------------------------------
+            // 6) Brick collision (grid-based)
+            // -----------------------------------------------------------------
+            hit_any_brick = 1'b0;
+
             if ( (bcx >= BRICK_X0) && (bcx < bricks_x_end) &&
                  (bcy >= BRICK_Y0) && (bcy < bricks_y_end) ) begin
 
@@ -251,12 +267,9 @@ module breakout_game #(
                 if (brick_row >= 0 && brick_row < BRICK_ROWS &&
                     brick_col >= 0 && brick_col < BRICK_COLS) begin
 
-                    brick_x_start = BRICK_X0 +
-                                    brick_col*(BRICK_W + BRICK_X_SP);
-                    brick_y_start = BRICK_Y0 +
-                                    brick_row*(BRICK_H + BRICK_Y_SP);
+                    brick_x_start = BRICK_X0 + brick_col*(BRICK_W + BRICK_X_SP);
+                    brick_y_start = BRICK_Y0 + brick_row*(BRICK_H + BRICK_Y_SP);
 
-                    // inside the actual brick rectangle, not the gap?
                     if ( (bcx >= brick_x_start) &&
                          (bcx <  brick_x_start + BRICK_W) &&
                          (bcy >= brick_y_start) &&
@@ -265,51 +278,47 @@ module breakout_game #(
                         brick_idx = brick_row*BRICK_COLS + brick_col;
 
                         if (bricks_alive[brick_idx]) begin
-                            // ---------- 1) BOUNCE OFF THIS BRICK ----------
-                            // Decide entry side using old vs new centers.
+                            hit_any_brick = 1'b1;
 
-                            // came from left?
-                            if ((ball_vx > 0) &&
+                            // Bounce decision using old vs new center
+                            if ((vx_next > 0) &&
                                 (bcx_old <= brick_x_start) &&
                                 (bcx     >= brick_x_start)) begin
 
-                                ball_vx = -ball_vx;
+                                vx_next = -vx_next;
                                 nx      = brick_x_start - BALL_SIZE;
                                 bcx     = nx + BALL_SIZE/2;
                             end
-                            // came from right?
-                            else if ((ball_vx < 0) &&
+                            else if ((vx_next < 0) &&
                                      (bcx_old >= brick_x_start + BRICK_W) &&
                                      (bcx     <= brick_x_start + BRICK_W)) begin
 
-                                ball_vx = -ball_vx;
+                                vx_next = -vx_next;
                                 nx      = brick_x_start + BRICK_W;
                                 bcx     = nx + BALL_SIZE/2;
                             end
-                            // came from above?
-                            else if ((ball_vy > 0) &&
+                            else if ((vy_next > 0) &&
                                      (bcy_old <= brick_y_start) &&
                                      (bcy     >= brick_y_start)) begin
 
-                                ball_vy = -ball_vy;
+                                vy_next = -vy_next;
                                 ny      = brick_y_start - BALL_SIZE;
                                 bcy     = ny + BALL_SIZE/2;
                             end
-                            // otherwise treat as from below
                             else begin
-                                ball_vy = -ball_vy;
+                                vy_next = -vy_next;
                                 ny      = brick_y_start + BRICK_H;
                                 bcy     = ny + BALL_SIZE/2;
                             end
 
-                            // ---------- 2) HP / DESTRUCTION LOGIC ----------
-                            // (brick may disappear now, but bounce already chosen)
-                            if (brick_hp[brick_idx] > 0) begin
-                                brick_hp[brick_idx] = brick_hp[brick_idx] - 2'd1;
-
-                                if (brick_hp[brick_idx] == 0) begin
-                                    bricks_alive[brick_idx] = 1'b0;
-                                    score                   = score + 10'd5;   // 5 pts per brick
+                            // HP / destruction (fixes “check after decrement” bug)
+                            if (brick_hp[brick_idx] != 2'd0) begin
+                                if (brick_hp[brick_idx] == 2'd1) begin
+                                    brick_hp[brick_idx] <= 2'd0;
+                                    bricks_alive[brick_idx] <= 1'b0;
+                                    score <= score + 10'd5;
+                                end else begin
+                                    brick_hp[brick_idx] <= brick_hp[brick_idx] - 2'd1;
                                 end
                             end
                         end
@@ -317,15 +326,21 @@ module breakout_game #(
                 end
             end
 
-            // ---------------- Bottom miss (lose ball) --------------------
-            if (ny >= GAME_H - BALL_SIZE) begin
-                ball_lost  = 1'b1;
-                ball_y_pix = GAME_H - BALL_SIZE;
-                ball_x_pix = nx[8:0];
+            // -----------------------------------------------------------------
+            // 7) Bottom miss (lose ball)
+            // -----------------------------------------------------------------
+            if (ny >= (GAME_H - BALL_SIZE)) begin
+                ball_lost  <= 1'b1;
+                ball_y_pix <= (GAME_H - BALL_SIZE);
+                ball_x_pix <= nx[8:0];
             end else begin
-                ball_x_pix = nx[8:0];
-                ball_y_pix = ny[8:0];
+                ball_x_pix <= nx[8:0];
+                ball_y_pix <= ny[8:0];
             end
+
+            // Commit velocities at the end of the tick
+            ball_vx <= vx_next;
+            ball_vy <= vy_next;
         end
     end
 

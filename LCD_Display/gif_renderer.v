@@ -1,3 +1,26 @@
+/* ============================================================================
+ * gif_renderer.v  (Landscape 320x240 RGB565 framebuffer generator)
+ *
+ * What this file does:
+ *   This module renders the "GIF viewer" home/app screen:
+ *     - Gradient background
+ *     - A top-centered QUIT button (with text)
+ *     - A bordered "GIF box" region (placeholder area for frames)
+ *
+ * How it works (high level):
+ *   1) The TFT driver asserts framebufferClk once per pixel request.
+ *   2) On each rising edge of framebufferClk, we advance (x,y) scan counters.
+ *   3) We compute the pixel color by checking whether (x,y) falls inside
+ *      UI regions (QUIT button, GIF box border/fill) or the background.
+ *
+ * Output:
+ *   - pixel_color : 16-bit RGB565 color for the current scan pixel (x,y)
+ *
+ * Assumption:
+ *   - The ILI9341 is configured for a 320x240 LANDSCAPE address window.
+ * ============================================================================
+ */
+
 // gif_renderer.v
 // GIF app screen (lightweight version):
 //  - Gradient background
@@ -18,8 +41,9 @@ module gif_renderer #(
 );
 
     // Physical panel dimensions
-    localparam LCD_W = 240;
-    localparam LCD_H = 320;
+    // The scan geometry MUST match tft_ili9341.v window (320x240)
+    localparam LCD_W = 320;
+    localparam LCD_H = 240;
 
     // --------------------------------------------------------------------
     // Layout: QUIT button + GIF box region (must match LCD_driver_top)
@@ -46,8 +70,8 @@ module gif_renderer #(
     // --------------------------------------------------------------------
     // Physical X/Y pixel counters driven by framebufferClk
     // --------------------------------------------------------------------
-    reg [8:0] x;  // 0..239
-    reg [8:0] y;  // 0..319
+    reg [8:0] x;  // 0..319
+    reg [8:0] y;  // 0..239
     reg       fbclk_d;
 
     always @(posedge clk or negedge reset_n) begin
@@ -71,12 +95,17 @@ module gif_renderer #(
         end
     end
 
-    // Rotate to game coordinates (same as breakout/home)
-    wire [8:0] game_x = y;                 // 0..319
-    wire [8:0] game_y = LCD_W - 1 - x;     // 0..239
+    // Map scan coordinates directly into game coordinates (landscape)
+    wire [8:0] game_x = x;
+    wire [8:0] game_y = y;
 
     // --------------------------------------------------------------------
     // Simple gradient background (vertical blue-ish)
+    // --------------------------------------------------------------------
+    // --------------------------------------------------------------------
+    // Background generator
+    // --------------------------------------------------------------------
+    // Simple vertical gradient in RGB565.
     // --------------------------------------------------------------------
     function [15:0] gradient_color;
         input [8:0] gy;
@@ -128,6 +157,14 @@ module gif_renderer #(
 
     // --------------------------------------------------------------------
     // Main combinational drawing
+    // --------------------------------------------------------------------
+    // --------------------------------------------------------------------
+    // Pixel selection (UI region tests)
+    // --------------------------------------------------------------------
+    // Decide if (x,y) is inside:
+    //   - QUIT button (border + fill + text)
+    //   - GIF box (border + fill)
+    // Otherwise draw background gradient.
     // --------------------------------------------------------------------
     always @* begin
         // default: gradient background

@@ -1,37 +1,55 @@
 // LCD_driver_top.v
-// DE10-Lite + ILI9341 + FT6336 touch +
-//   - Global app FSM: HOME / BREAKOUT / GIF
-//   - Home screen with Breakout icon and GIF icon ("CPE 431")
-//   - Breakout game with Game Over UI
-//   - GIF app skeleton with Home button + GIF placeholder box
+// -----------------------------------------------------------------------------
+// DE10-Lite + ILI9341 + FT6336 touch
+//
+// Global App FSM:
+//   - HOME     : home screen with 3 icons (GIF, KEYPAD, BREAKOUT)
+//   - BREAKOUT : breakout game + game-over UI
+//   - GIF      : gif app skeleton + HOME button
+//   - KEYPAD   : on-screen hex keypad (0-9, A-F) + HOME button
+//
+// Also drives DE10-Lite HEX0 with the last keypad value pressed.
+//
+// Notes:
+// - Touch mapping assumes your display orientation matches your working setup:
+//     game_touch_x comes from touch_y
+//     game_touch_y comes from inverted touch_x
+// - All icon hitboxes are in GAME coords (0..319 x 0..239).
+// - KEYPAD icon hitbox includes the label area so you can tap the text too.
+//
+// Verilog-2001, purely synchronous control.
+// -----------------------------------------------------------------------------
 
 `timescale 1ns/1ps
 
 module LCD_driver_top (
-    input  wire clk_50,      // 50 MHz DE10-Lite clock
-    input  wire reset_n,     // active-low reset (KEY0)
+    input  wire        clk_50,      // 50 MHz DE10-Lite clock
+    input  wire        reset_n,     // active-low reset (KEY0)
 
     // LCD pins
-    output wire lcd_cs,      // TFT CS  (active low)
-    output wire lcd_rst,     // TFT RESET
-    output wire lcd_rs,      // TFT D/C (RS)
-    output wire lcd_sck,     // TFT SCK
-    output wire lcd_mosi,    // TFT MOSI / SDI
+    output wire        lcd_cs,      // TFT CS  (active low)
+    output wire        lcd_rst,     // TFT RESET
+    output wire        lcd_rs,      // TFT D/C (RS)
+    output wire        lcd_sck,     // TFT SCK
+    output wire        lcd_mosi,    // TFT MOSI / SDI
 
     // Backlight / SD / debug
-    output wire bl_pwm,      // Backlight PWM/enable
-    output wire sd_cs,       // SD card CS (keep disabled)
-    output wire debug_led,   // tie to LEDR0 for a heartbeat
+    output wire        bl_pwm,      // Backlight PWM/enable
+    output wire        sd_cs,       // SD card CS (keep disabled)
+    output wire        debug_led,   // tie to LEDR0 for a heartbeat
 
     // Extra LEDs for debug
-    output wire [3:0] led_touch_y,   // map to LEDR[3:0]
-    output wire [3:0] led_paddle_x,  // map to LEDR[7:4]
+    output wire [3:0]  led_touch_y,   // map to LEDR[3:0]
+    output wire [3:0]  led_paddle_x,  // map to LEDR[7:4]
+
+    // 7-seg display (HEX0) for keypad output
+    output wire [6:0]  HEX0,
 
     // Touch panel pins (FT6336G)
-    output wire CTP_SCL,
-    inout  wire CTP_SDA,
-    output wire CTP_RST,
-    input  wire CTP_INT      // from panel
+    output wire        CTP_SCL,
+    inout  wire        CTP_SDA,
+    output wire        CTP_RST,
+    input  wire        CTP_INT      // from panel
 );
 
     // --------------------------------------------------------------------
@@ -40,21 +58,29 @@ module LCD_driver_top (
     localparam integer GAME_W = 320;
     localparam integer GAME_H = 240;
 
-    // Breakout home icon geometry (must match home_renderer)
+    // Common icon geometry (must match home_renderer)
     localparam integer ICON_W        = 48;
     localparam integer ICON_H        = 48;
     localparam integer ICON_MARGIN_X = 16;
     localparam integer ICON_MARGIN_Y = 16;
-    localparam integer ICON_X0       = GAME_W - ICON_W - ICON_MARGIN_X; // 256
-    localparam integer ICON_Y0       = ICON_MARGIN_Y;                   // 16
 
-    // GIF home icon geometry (left side on HOME SCREEN)
-    localparam integer GIF_ICON_W   = ICON_W;
-    localparam integer GIF_ICON_H   = ICON_H;
-    localparam integer GIF_ICON_X0  = ICON_MARGIN_X;   // 16
-    localparam integer GIF_ICON_Y0  = ICON_MARGIN_Y;   // 16
+    // Breakout icon (top-right)
+    localparam integer ICON_X0 = GAME_W - ICON_W - ICON_MARGIN_X; // 256
+    localparam integer ICON_Y0 = ICON_MARGIN_Y;                   // 16
 
-    // Game Over buttons (must match breakout_renderer)
+    // GIF icon (top-left)
+    localparam integer GIF_ICON_W  = ICON_W;
+    localparam integer GIF_ICON_H  = ICON_H;
+    localparam integer GIF_ICON_X0 = ICON_MARGIN_X;               // 16
+    localparam integer GIF_ICON_Y0 = ICON_MARGIN_Y;               // 16
+
+    // KEYPAD icon (top-center)
+    localparam integer KP_ICON_W  = ICON_W;
+    localparam integer KP_ICON_H  = ICON_H;
+    localparam integer KP_ICON_X0 = (GAME_W - ICON_W)/2;          // 136
+    localparam integer KP_ICON_Y0 = ICON_MARGIN_Y;                // 16
+
+    // Breakout Game Over buttons (must match breakout_renderer)
     localparam [8:0] PLAY_X0  = 9'd90;
     localparam [8:0] PLAY_X1  = 9'd230;
     localparam [8:0] PLAY_Y0  = 9'd80;
@@ -65,24 +91,30 @@ module LCD_driver_top (
     localparam [8:0] EXIT_Y0  = 9'd140;
     localparam [8:0] EXIT_Y1  = 9'd180;
 
-    // GIF app Home button (TOP-CENTER, must match gif_renderer)
-    // Button size ~80x30, centered horizontally
-    localparam [8:0] GIF_HOME_X0 = 9'd120;  // (320 - 80)/2
-    localparam [8:0] GIF_HOME_X1 = 9'd200;  // 80 px wide
+    // GIF app Home button (TOP-CENTER) (must match gif_renderer)
+    localparam [8:0] GIF_HOME_X0 = 9'd120;
+    localparam [8:0] GIF_HOME_X1 = 9'd200;
     localparam [8:0] GIF_HOME_Y0 = 9'd10;
     localparam [8:0] GIF_HOME_Y1 = 9'd40;
 
+    // KEYPAD app Home button (TOP-CENTER) (must match keypad_renderer)
+    localparam [8:0] KP_HOME_X0 = 9'd120;
+    localparam [8:0] KP_HOME_X1 = 9'd200;
+    localparam [8:0] KP_HOME_Y0 = 9'd10;
+    localparam [8:0] KP_HOME_Y1 = 9'd40;
+
     // --------------------------------------------------------------------
-    // App-level FSM: HOME / BREAKOUT / GIF
+    // App-level FSM
     // --------------------------------------------------------------------
     localparam [1:0]
         APP_HOME     = 2'd0,
         APP_BREAKOUT = 2'd1,
-        APP_GIF      = 2'd2;
+        APP_GIF      = 2'd2,
+        APP_KEYPAD   = 2'd3;
 
     reg [1:0] app_state;
 
-    // Breakout sub-FSM (inside APP_BREAKOUT)
+    // Breakout sub-FSM
     localparam [1:0]
         B_IDLE      = 2'd0,
         B_PLAY      = 2'd1,
@@ -100,15 +132,15 @@ module LCD_driver_top (
     // TFT driver instantiation
     // --------------------------------------------------------------------
     reg  [15:0] fb_data_reg;
-    wire [15:0] fb_data      = fb_data_reg;
+    wire [15:0] fb_data = fb_data_reg;
     wire        framebufferClk;
 
     tft_ili9341 #(
-        .INPUT_CLK_MHZ(50)          // DE10-Lite uses 50 MHz clock
+        .INPUT_CLK_MHZ(50)
     ) tft_inst (
         .clk            (clk_50),
-        .reset_n        (reset_n),  // reset driver + LCD from KEY0
-        .tft_sdo        (1'b0),     // not reading from LCD
+        .reset_n        (reset_n),
+        .tft_sdo        (1'b0),
         .tft_sck        (lcd_sck),
         .tft_sdi        (lcd_mosi),
         .tft_dc         (lcd_rs),
@@ -119,7 +151,7 @@ module LCD_driver_top (
     );
 
     // --------------------------------------------------------------------
-    // Touch controller (FT6336G polling version)
+    // Touch controller (FT6336G polling)
     // --------------------------------------------------------------------
     wire        touch_valid;
     wire        touch_down;
@@ -129,14 +161,14 @@ module LCD_driver_top (
     ft6336_touch #(
         .CLK_FREQ_HZ(50_000_000),
         .I2C_FREQ_HZ(100_000),
-        .POLL_HZ    (200)            // ~200 samples/sec
+        .POLL_HZ    (200)
     ) touch_inst (
         .clk        (clk_50),
         .reset_n    (reset_n),
         .CTP_SCL    (CTP_SCL),
         .CTP_SDA    (CTP_SDA),
         .CTP_RST    (CTP_RST),
-        .CTP_INT    (CTP_INT),       // unused for polling
+        .CTP_INT    (CTP_INT),
         .touch_valid(touch_valid),
         .touch_down (touch_down),
         .touch_x    (touch_x),
@@ -149,18 +181,17 @@ module LCD_driver_top (
     // --------------------------------------------------------------------
     // Map touch coordinates -> GAME coordinates (rotation-aware)
     // --------------------------------------------------------------------
-    // Horizontal game X comes from panel Y (touch_y), clamped
-    wire [8:0] game_touch_x_raw = touch_y[8:0];
-    wire [8:0] game_touch_x =
-        (game_touch_x_raw > (GAME_W-1)) ? (GAME_W-1) : game_touch_x_raw;
+    wire [9:0] game_touch_x_raw = touch_y[9:0];
+    wire [9:0] game_touch_x =
+        (game_touch_x_raw > 10'd319) ? 10'd319 : game_touch_x_raw;
 
-    // Vertical game Y from touch_x, inverted (since screen is rotated)
     wire [7:0] touch_x_clamped =
         (touch_x[7:0] > 8'd239) ? 8'd239 : touch_x[7:0];
+
     wire [8:0] game_touch_y = 9'd239 - {1'b0, touch_x_clamped};
 
     // --------------------------------------------------------------------
-    // Edge detect on touch_down so screens react only to taps
+    // Edge detect on touch_down (tap detection)
     // --------------------------------------------------------------------
     reg touch_down_d;
 
@@ -174,12 +205,11 @@ module LCD_driver_top (
     wire touch_rise = touch_down && !touch_down_d;
 
     // --------------------------------------------------------------------
-    // HOMESCREEN + GIF + GAME OVER hitboxes (in GAME coordinates)
+    // Hitboxes (HOME icons + buttons)
     // --------------------------------------------------------------------
     localparam integer ICON_HIT_MARGIN = 4;
 
-    // home-screen icons
-    wire in_breakout_icon = 
+    wire in_breakout_icon =
         (game_touch_x >= ICON_X0 - ICON_HIT_MARGIN) &&
         (game_touch_x <  ICON_X0 + ICON_W + ICON_HIT_MARGIN) &&
         (game_touch_y >= ICON_Y0 - ICON_HIT_MARGIN) &&
@@ -191,14 +221,29 @@ module LCD_driver_top (
         (game_touch_y >= GIF_ICON_Y0 - ICON_HIT_MARGIN) &&
         (game_touch_y <  GIF_ICON_Y0 + GIF_ICON_H + ICON_HIT_MARGIN);
 
-    // GIF app "Home" button (TOP-CENTER)
+    // Include icon + label area for KEYPAD so tapping text works too
+    localparam integer CHAR_H      = 7;
+    localparam integer LABEL_GAP_Y = 8;
+    localparam integer EXTRA_Y     = 12;
+
+    wire in_keypad_icon =
+        (game_touch_x >= KP_ICON_X0 - ICON_HIT_MARGIN) &&
+        (game_touch_x <  KP_ICON_X0 + KP_ICON_W + ICON_HIT_MARGIN) &&
+        (game_touch_y >= KP_ICON_Y0 - ICON_HIT_MARGIN) &&
+        (game_touch_y <  (KP_ICON_Y0 + KP_ICON_H + LABEL_GAP_Y + CHAR_H + EXTRA_Y + ICON_HIT_MARGIN));
+
     wire in_gif_home_btn =
         (game_touch_x >= GIF_HOME_X0) &&
         (game_touch_x <  GIF_HOME_X1) &&
         (game_touch_y >= GIF_HOME_Y0) &&
         (game_touch_y <  GIF_HOME_Y1);
 
-    // Game Over PLAY / QUIT buttons
+    wire in_keypad_home_btn =
+        (game_touch_x >= KP_HOME_X0) &&
+        (game_touch_x <  KP_HOME_X1) &&
+        (game_touch_y >= KP_HOME_Y0) &&
+        (game_touch_y <  KP_HOME_Y1);
+
     wire in_play_btn =
         (game_touch_x >= PLAY_X0) &&
         (game_touch_x <  PLAY_X1) &&
@@ -211,10 +256,14 @@ module LCD_driver_top (
         (game_touch_y >= EXIT_Y0) &&
         (game_touch_y <  EXIT_Y1);
 
-    // edge-based taps
+    // Edge-based taps (same behavior for all)
     wire tap_breakout_icon = touch_rise && touch_valid && in_breakout_icon;
     wire tap_gif_icon      = touch_rise && touch_valid && in_gif_icon;
+    wire tap_keypad_icon   = touch_rise && touch_valid && in_keypad_icon;
+
     wire tap_gif_home      = touch_rise && touch_valid && in_gif_home_btn;
+    wire tap_keypad_home   = touch_rise && touch_valid && in_keypad_home_btn;
+
     wire tap_play_again    = touch_rise && touch_valid && in_play_btn;
     wire tap_quit          = touch_rise && touch_valid && in_quit_btn;
 
@@ -226,15 +275,12 @@ module LCD_driver_top (
 
     always @(posedge clk_50 or negedge reset_n) begin
         if (!reset_n) begin
-            paddle_target_x <= 9'd160; // center
+            paddle_target_x <= 9'd160;
         end else begin
             if ((app_state == APP_BREAKOUT) &&
                 (b_state   == B_PLAY) &&
                 touch_valid && touch_down) begin
-                if (game_touch_x > (GAME_W-1))
-                    paddle_target_x <= GAME_W-1;
-                else
-                    paddle_target_x <= game_touch_x;
+                paddle_target_x <= game_touch_x[8:0];
             end
         end
     end
@@ -243,30 +289,27 @@ module LCD_driver_top (
     assign led_paddle_x    = paddle_x_nibble;
 
     // --------------------------------------------------------------------
-    // Breakout game control signals
+    // Breakout control signals
     // --------------------------------------------------------------------
-    reg       game_run;
-    reg       new_game;
-    wire      ball_lost;
-    wire      breakout_game_over = (b_state == B_GAME_OVER);
+    reg  game_run;
+    reg  new_game;
+    wire ball_lost;
+    wire breakout_game_over = (b_state == B_GAME_OVER);
 
     // --------------------------------------------------------------------
-    // App + Breakout sub-FSM
+    // App + Breakout sub-FSM  (CLEAN, NON-NESTED CASE ITEMS)
     // --------------------------------------------------------------------
     always @(posedge clk_50 or negedge reset_n) begin
         if (!reset_n) begin
-            app_state   <= APP_HOME;
-            b_state     <= B_IDLE;
-            game_run    <= 1'b0;
-            new_game    <= 1'b0;
+            app_state <= APP_HOME;
+            b_state   <= B_IDLE;
+            game_run  <= 1'b0;
+            new_game  <= 1'b0;
         end else begin
-            // default: no new_game pulse
             new_game <= 1'b0;
 
             case (app_state)
-                // ---------------------------------------------------------
-                // GLOBAL HOME SCREEN (two icons)
-                // ---------------------------------------------------------
+
                 APP_HOME: begin
                     game_run <= 1'b0;
                     b_state  <= B_IDLE;
@@ -275,15 +318,14 @@ module LCD_driver_top (
                         app_state <= APP_BREAKOUT;
                         b_state   <= B_PLAY;
                         game_run  <= 1'b1;
-                        new_game  <= 1'b1;  // reset Breakout
+                        new_game  <= 1'b1;
                     end else if (tap_gif_icon) begin
                         app_state <= APP_GIF;
+                    end else if (tap_keypad_icon) begin
+                        app_state <= APP_KEYPAD;
                     end
                 end
 
-                // ---------------------------------------------------------
-                // BREAKOUT APP
-                // ---------------------------------------------------------
                 APP_BREAKOUT: begin
                     case (b_state)
                         B_IDLE: begin
@@ -301,8 +343,6 @@ module LCD_driver_top (
                         B_GAME_OVER: begin
                             game_run <= 1'b0;
 
-                            // Use edge-based taps so holding a touch
-                            // when the ball is lost does NOT auto-select.
                             if (tap_play_again) begin
                                 b_state  <= B_PLAY;
                                 game_run <= 1'b1;
@@ -321,16 +361,16 @@ module LCD_driver_top (
                     endcase
                 end
 
-                // ---------------------------------------------------------
-                // GIF APP
-                // ---------------------------------------------------------
                 APP_GIF: begin
-                    game_run <= 1'b0; // pause Breakout
-
-                    if (tap_gif_home) begin
+                    game_run <= 1'b0;
+                    if (tap_gif_home)
                         app_state <= APP_HOME;
-                        b_state   <= B_IDLE;
-                    end
+                end
+
+                APP_KEYPAD: begin
+                    game_run <= 1'b0;
+                    if (tap_keypad_home)
+                        app_state <= APP_HOME;
                 end
 
                 default: begin
@@ -371,11 +411,46 @@ module LCD_driver_top (
     );
 
     // --------------------------------------------------------------------
+    // Keypad selection (latched on press) + HEX0 drive
+    // --------------------------------------------------------------------
+    reg  [3:0] selected_hex;
+
+    wire       keypad_key_pulse;
+    wire [3:0] keypad_key_value;
+
+    // Only feed keypad decoder tap events while in KEYPAD app
+    wire keypad_touch_event =
+        (app_state == APP_KEYPAD) ? (touch_rise && touch_valid) : 1'b0;
+
+    keypad_touch_decode keypad_decode_inst (
+        .clk        (clk_50),
+        .reset_n    (reset_n),
+        .touch_valid(keypad_touch_event),
+        .touch_x    (game_touch_x[9:0]),
+        .touch_y    (game_touch_y[8:0]),
+        .key_pulse  (keypad_key_pulse),
+        .key_value  (keypad_key_value)
+    );
+
+    always @(posedge clk_50 or negedge reset_n) begin
+        if (!reset_n)
+            selected_hex <= 4'h0;
+        else if ((app_state == APP_KEYPAD) && keypad_key_pulse)
+            selected_hex <= keypad_key_value;
+    end
+
+    hex7seg hex0_inst (
+        .val(selected_hex),
+        .seg(HEX0)
+    );
+
+    // --------------------------------------------------------------------
     // Renderers
     // --------------------------------------------------------------------
     wire [15:0] home_pixel;
     wire [15:0] scene_pixel;
     wire [15:0] gif_pixel;
+    wire [15:0] keypad_pixel;
 
     home_renderer #(
         .GAME_W(GAME_W),
@@ -391,16 +466,12 @@ module LCD_driver_top (
         .clk             (clk_50),
         .reset_n         (reset_n),
         .framebufferClk  (framebufferClk),
-
         .paddle_x_center (paddle_x_game),
         .ball_x_pix      (ball_x_game),
         .ball_y_pix      (ball_y_game),
-
         .bricks_alive    (bricks_alive_game),
         .score           (score_game),
-
         .game_over       (breakout_game_over),
-
         .pixel_color     (scene_pixel)
     );
 
@@ -414,23 +485,35 @@ module LCD_driver_top (
         .pixel_color   (gif_pixel)
     );
 
+    keypad_renderer #(
+        .GAME_W (GAME_W),
+        .GAME_H (GAME_H),
+        .SWAP_XY(0),
+        .FLIP_X (0),
+        .FLIP_Y (0)
+    ) keypad_inst (
+        .clk           (clk_50),
+        .reset_n       (reset_n),
+        .framebufferClk(framebufferClk),
+        .selected_hex  (selected_hex),
+        .pixel_color   (keypad_pixel)
+    );
+
     // --------------------------------------------------------------------
-    // Framebuffer data mux:
-    //  - APP_HOME     => home screen (icons)
-    //  - APP_BREAKOUT => breakout scene pixels
-    //  - APP_GIF      => GIF app skeleton
+    // Framebuffer mux by app
     // --------------------------------------------------------------------
     always @* begin
         case (app_state)
             APP_HOME:     fb_data_reg = home_pixel;
             APP_BREAKOUT: fb_data_reg = scene_pixel;
             APP_GIF:      fb_data_reg = gif_pixel;
+            APP_KEYPAD:   fb_data_reg = keypad_pixel;
             default:      fb_data_reg = 16'h0000;
         endcase
     end
 
     // --------------------------------------------------------------------
-    // Simple heartbeat LED so you know the top is running
+    // Heartbeat LED
     // --------------------------------------------------------------------
     reg [23:0] blink_cnt;
 
