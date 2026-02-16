@@ -11,3 +11,6 @@ Advanced Logic Design Lab (ALDL) project.
 - Schematics: Hardware schematics and PCB files
 
 Each module is self-contained and includes its own Quartus project files.
+
+
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/c40eb919-9ab8-4638-a225-8ce5445dd23a" />
