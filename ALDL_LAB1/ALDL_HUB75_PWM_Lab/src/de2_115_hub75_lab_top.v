@@ -1,0 +1,164 @@
+// de2_115_hub75_lab_top.v
+// Lab top for HUB75 PWM Lab (3 phases)
+// SW[1:0] selects phase:
+//   00 -> Phase 1: moving pixel (R->G->B)
+//   01 -> Phase 2: gradient   (placeholder = hub75_uahlogo for now)
+//   10 -> Phase 3: animation  (hub75_gif for now; later swap to hex-animation module)
+//   11 -> (reserved) defaults to Phase 3
+//
+// NOTE: This top assumes you have these modules in your project:
+//   - hub75_phase1_pixel.v   (new Phase 1 module)
+//   - hub75_uahlogo.v        (existing; used as Phase 2 placeholder)
+//   - hub75_gif.v            (existing; used as Phase 3)
+//
+// If your lab will *only* include Phase 1 initially, you can remove the other modules
+// and keep the mux structure for later expansion.
+
+module de2_115_hub75_lab_top (
+    input  wire        CLOCK_50,
+    input  wire [3:0]  KEY,    // kept for pinout compatibility
+    input  wire [9:0]  SW,     // SW[1:0] = phase select
+
+    output wire        PANEL_R1,
+    output wire        PANEL_G1,
+    output wire        PANEL_B1,
+    output wire        PANEL_R2,
+    output wire        PANEL_G2,
+    output wire        PANEL_B2,
+    output wire        PANEL_A,
+    output wire        PANEL_B,
+    output wire        PANEL_C,
+    output wire        PANEL_D,
+    output wire        PANEL_CLK,
+    output wire        PANEL_LAT,
+    output wire        PANEL_OE
+);
+
+    // ------------------------------------------------------------
+    // Reset (active-low). For now held deasserted like your original.
+    // If you want a real reset, map it to a KEY, e.g. ~KEY[0].
+    // ------------------------------------------------------------
+    wire reset_n = KEY[0];
+	
+    // Phase select
+    wire [1:0] phase = SW[1:0];
+
+    // ------------------------------------------------------------
+    // Phase 1: Moving Pixel RGB
+    // ------------------------------------------------------------
+    wire p1_r1, p1_g1, p1_b1;
+    wire p1_r2, p1_g2, p1_b2;
+    wire [3:0] p1_row_addr;
+    wire p1_clk, p1_lat, p1_oe;
+
+    hub75_phase1_pixel u_phase1 (
+        .clk      (CLOCK_50),
+        .reset_n  (reset_n),
+
+        .r1       (p1_r1),
+        .g1       (p1_g1),
+        .b1       (p1_b1),
+        .r2       (p1_r2),
+        .g2       (p1_g2),
+        .b2       (p1_b2),
+
+        .row_addr (p1_row_addr),
+        .clk_out  (p1_clk),
+        .lat      (p1_lat),
+        .oe       (p1_oe)
+    );
+
+    // ------------------------------------------------------------
+    // Phase 2: Gradient (TEMP PLACEHOLDER)
+    // Replace this with hub75_phase2_gradient later.
+    // ------------------------------------------------------------
+	 // Brightness control for Phase 2 (3-bit = 8 levels)
+
+wire p2_r1, p2_g1, p2_b1;
+wire p2_r2, p2_g2, p2_b2;
+wire [3:0] p2_row_addr;     // <-- MUST be [3:0]
+wire p2_clk, p2_lat, p2_oe;
+
+// Brightness control for Phase 2 (3-bit = 8 levels)
+wire [2:0] bright = SW[4:2];
+
+hub75_phase2_gradient u_phase2 (
+    .clk      (CLOCK_50),
+    .reset_n  (reset_n),
+    .bright   (bright),
+
+    .r1       (p2_r1),
+    .g1       (p2_g1),
+    .b1       (p2_b1),
+    .r2       (p2_r2),
+    .g2       (p2_g2),
+    .b2       (p2_b2),
+
+    .row_addr (p2_row_addr),
+    .clk_out  (p2_clk),
+    .lat      (p2_lat),
+    .oe       (p2_oe)
+);
+
+
+    // ------------------------------------------------------------
+    // Phase 3: Animation (GIF for now; later swap to HEX animation)
+    // ------------------------------------------------------------
+wire p3_r1, p3_g1, p3_b1;
+wire p3_r2, p3_g2, p3_b2;
+wire [3:0] p3_row_addr;
+wire p3_clk, p3_lat, p3_oe;
+
+hub75_gif #(
+    .NUM_FRAMES (72),
+    .FRAME_HOLD (64),
+    .SHOW_TICKS (3000),
+    .MEM_FILE   ("GIF1.hex")
+) u_gif (
+    .clk     (CLOCK_50),
+    .reset_n (reset_n),
+
+    .r1      (p3_r1),
+    .g1      (p3_g1),
+    .b1      (p3_b1),
+    .r2      (p3_r2),
+    .g2      (p3_g2),
+    .b2      (p3_b2),
+
+    .row_addr(p3_row_addr),
+    .clk_out (p3_clk),
+    .lat     (p3_lat),
+    .oe      (p3_oe)
+);
+
+
+
+
+    // ------------------------------------------------------------
+    // OUTPUT MUX: choose one phase
+    // ------------------------------------------------------------
+    wire sel_p1 = (phase == 2'b00);
+    wire sel_p2 = (phase == 2'b01);
+    wire sel_p3 = (phase == 2'b10) || (phase == 2'b11); // default to p3 on 11
+
+    // RGB outputs
+    assign PANEL_R1 = sel_p1 ? p1_r1 : (sel_p2 ? p2_r1 : p3_r1);
+    assign PANEL_G1 = sel_p1 ? p1_g1 : (sel_p2 ? p2_g1 : p3_g1);
+    assign PANEL_B1 = sel_p1 ? p1_b1 : (sel_p2 ? p2_b1 : p3_b1);
+
+    assign PANEL_R2 = sel_p1 ? p1_r2 : (sel_p2 ? p2_r2 : p3_r2);
+    assign PANEL_G2 = sel_p1 ? p1_g2 : (sel_p2 ? p2_g2 : p3_g2);
+    assign PANEL_B2 = sel_p1 ? p1_b2 : (sel_p2 ? p2_b2 : p3_b2);
+
+    // Control signals
+    assign PANEL_CLK = sel_p1 ? p1_clk : (sel_p2 ? p2_clk : p3_clk);
+    assign PANEL_LAT = sel_p1 ? p1_lat : (sel_p2 ? p2_lat : p3_lat);
+    assign PANEL_OE  = sel_p1 ? p1_oe  : (sel_p2 ? p2_oe  : p3_oe);
+
+    // Row address (A is LSB, D is MSB)
+    wire [3:0] row_sel = sel_p1 ? p1_row_addr :
+                         (sel_p2 ? p2_row_addr : p3_row_addr);
+
+    assign {PANEL_D, PANEL_C, PANEL_B, PANEL_A} = row_sel;
+
+endmodule
