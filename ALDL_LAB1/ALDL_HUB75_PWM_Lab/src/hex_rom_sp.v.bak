@@ -1,0 +1,26 @@
+// hex_rom_sp.v
+// Single-port synchronous ROM, 1-cycle latency.
+// One byte per address. Loads from MEM_FILE via $readmemh.
+
+module hex_rom_sp #(
+    parameter integer ADDR_W     = 17,
+    parameter integer ROM_DEPTH  = 73728,
+    parameter        MEM_FILE   = "GIF1.hex"
+)(
+    input  wire                 clk,
+    input  wire [ADDR_W-1:0]    addr,
+    output reg  [7:0]           dout
+);
+
+    (* ramstyle = "M9K" *)
+    reg [7:0] mem [0:ROM_DEPTH-1];
+
+    initial begin
+        $readmemh(MEM_FILE, mem);
+    end
+
+    always @(posedge clk) begin
+        dout <= mem[addr];
+    end
+
+endmodule

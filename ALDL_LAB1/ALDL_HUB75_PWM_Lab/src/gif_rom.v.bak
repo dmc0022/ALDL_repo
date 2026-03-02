@@ -1,0 +1,51 @@
+// gif_rom.v
+// SAME synchronous ROM behavior (1-cycle latency), now parameterized:
+// - NUM_FRAMES affects depth
+// - MEM_FILE controls which hex file is loaded
+// - addr width auto-scales to ROM_DEPTH
+
+module gif_rom #(
+    parameter integer FRAME_W     = 32,
+    parameter integer FRAME_H     = 32,
+    parameter integer NUM_FRAMES  = 72,
+    parameter integer FRAME_PIX   = FRAME_W * FRAME_H,
+    parameter integer ROM_DEPTH   = FRAME_PIX * NUM_FRAMES,
+    parameter         MEM_FILE    = "GIF1.hex"
+)(
+    clk,
+    addr,
+    dout
+);
+
+    // -----------------------------
+    // helper: clog2 (Verilog-safe)
+    // -----------------------------
+    function integer clog2;
+        input integer value;
+        integer i;
+        begin
+            value = value - 1;
+            for (i = 0; value > 0; i = i + 1)
+                value = value >> 1;
+            clog2 = i;
+        end
+    endfunction
+
+    localparam integer ADDR_W = (ROM_DEPTH <= 1) ? 1 : clog2(ROM_DEPTH);
+
+    input  wire              clk;
+    input  wire [ADDR_W-1:0] addr;
+    output reg  [7:0]        dout;
+
+    (* ramstyle = "M9K" *)
+    reg [7:0] mem [0:ROM_DEPTH-1];
+
+    initial begin
+        $readmemh(MEM_FILE, mem);
+    end
+
+    always @(posedge clk) begin
+        dout <= mem[addr];
+    end
+
+endmodule
