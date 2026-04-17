@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Debug-patched SystemVerilog I2C master based on the CircuitDen design.
+// SystemVerilog I2C master based on the CircuitDen design.
 //
 // Added debug outputs:
 //   dbg_state            - current main FSM state
