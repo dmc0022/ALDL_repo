@@ -79,7 +79,7 @@ module aldl_system_top #(
     wire signed [15:0] temp_centi_c      = temp_centi_c_wide >>> 5; // raw * 25 / 32
 
     // -------------------------------------------------------------------------
-    // Touch / CAP1188 hub (existing sensor board functionality)
+    // Touch / CAP1188 hub 
     // -------------------------------------------------------------------------
     i2c_touch_hub #(
         .DEV_ADDR0   (CAP_ADDR0),
