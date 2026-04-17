@@ -15,8 +15,8 @@
 //    We request first, then on the next SPI slot we transmit the bytes.
 //    This prevents being 1 pixel behind (which causes shifted/missing UI).
 //
-// Panel-specific notes (your hardware):
-//  - Your module requires INVON (0x21) for correct colors.
+// Panel-specific notes:
+//  - This module requires INVON (0x21) for correct colors.
 //  - MADCTL controls orientation and RGB/BGR ordering.
 // -----------------------------------------------------------------------------
 //
