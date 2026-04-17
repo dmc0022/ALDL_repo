@@ -48,8 +48,7 @@ module tft_ili9341_spi(
         if (dataAvailable) begin
             internalData <= data;
             idle         <= 1'b0;
-            // NOTE: original SystemVerilog did not explicitly reset counter here.
-            // We keep that behavior for compatibility.
+
         end
 
         // Change data if we're actively sending
