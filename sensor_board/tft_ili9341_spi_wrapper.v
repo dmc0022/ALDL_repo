@@ -3,14 +3,14 @@
 // TFT SPI Wrapper (DC + 8-bit byte), Verilog-2001
 //
 // Purpose:
-//   - Preserve your original 9-bit "data" interface used by tft_ili9341.v:
+//   - Preserve the original 9-bit "data" interface used by tft_ili9341.v:
 //       data[8]   = DC (0=command, 1=data)
 //       data[7:0] = byte to transmit
 //       dataAvailable = pulse when a byte is ready to send
 //       idle = 1 when ready to accept the next byte
 //   - Implement standard SPI Mode 0 timing using the generic spi_master_byte.
 //
-// Important behavior (compatible with your existing driver):
+// Important behavior:
 //   - Accepts a new byte ONLY when idle=1 and dataAvailable=1.
 //   - Latches DC + byte, asserts CS, transmits the byte, deasserts CS.
 //   - SCK is held LOW when idle.
@@ -18,8 +18,6 @@
 //
 // Notes about shared SPI bus (LCD + SD on same SCK/MOSI/MISO):
 //   - This wrapper only drives the TFT pins (CS/DC/SCK/MOSI).
-//   - For SD card support, you will add an SD controller that also uses
-//     spi_master_byte and shares SCK/MOSI/MISO through an arbiter.
 //   - For now, LCD_driver_top.v keeps sd_cs HIGH (inactive).
 // -----------------------------------------------------------------------------
 
