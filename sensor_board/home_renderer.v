@@ -5,7 +5,7 @@
 // This renderer outputs one pixel per framebufferClk pulse. It maintains an
 // internal (x,y) counter that MUST match the TFT driver's scan order.
 //
-// In the regenerated system:
+// In this system:
 //  - TFT driver always writes a 320x240 window each frame
 //  - framebufferClk pulses exactly once per pixel
 //  - This renderer increments x/y exactly once per pulse
