@@ -1,5 +1,9 @@
 `timescale 1ns/1ps
 `default_nettype none
+// TMP117 sensor information:
+//    This sensor can read temperatures from -255 to 255 degrees C. This value is 
+//    calculated from using the raw 16-bit temperature value read from the sensor
+//    with a resolution of 0.0078 C. 
 
 module tmp117_reader_completion_debug #(
     parameter integer CLK_FREQ_HZ  = 50_000_000,
