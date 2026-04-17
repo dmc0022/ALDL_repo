@@ -2,11 +2,12 @@
 // -----------------------------------------------------------------------------
 // Breakout game logic (physics + brick HP + score) driven by a STABLE time tick.
 //
-// Why this refactor matters:
-//   Previously, “smoothness” could accidentally depend on rendering timing
+// Latest Update:
+//   Previously, smoothness could accidentally depend on rendering timing
 //   (which can jitter if SPI stalls or pixel cadence changes).
 //   This version updates game state on a fixed-rate tick derived from clk,
 //   so the ball/paddle motion stays consistent regardless of display SPI speed.
+//   Ball speed is currently stable, but slow when moving vertical.
 //
 // Brick mechanic:
 //   - Rows 0..1: 3 hits
