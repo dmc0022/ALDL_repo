@@ -3,7 +3,7 @@
 // ------------------------------------------------------------
 // Converts a 4-bit hex value (0-F) into DE10-Lite 7-seg output.
 // 
-// Assumes ACTIVE-LOW segments (common on DE10-Lite):
+// ACTIVE-LOW segments:
 // seg[6:0] = {g,f,e,d,c,b,a}
 // ============================================================
 
