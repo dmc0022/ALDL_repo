@@ -1,7 +1,7 @@
 // ============================================================
 // keypad_renderer.v
 // ------------------------------------------------------------
-// 4x4 Hex Keypad Renderer (Layout A) - NO HOME BUTTON
+// 4x4 Hex Keypad Renderer (Layout A) - 
 // - Draws a centered 4x4 keypad with labels 0-9 and A-F
 // - Highlights the most recently selected key (selected_hex)
 // - Larger label font via 2x scale of the 4x7 font (8x14)
