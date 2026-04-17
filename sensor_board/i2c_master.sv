@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // SystemVerilog I2C master based on the CircuitDen design.
-//
+// https://github.com/0xArt/Tiny_But_Mighty_I2C_Master_Verilog
 // Added debug outputs:
 //   dbg_state            - current main FSM state
 //   dbg_process_counter  - current 4-phase substep
