@@ -5,8 +5,8 @@
 	(uuid "31659a35-7b79-4837-9c62-94b9d5dc0c37")
 	(paper "A4")
 	(title_block
-		(date "2026-03-18")
-		(rev "0.5")
+		(date "2026-04-24")
+		(rev "0.7")
 	)
 	(lib_symbols
 		(symbol "ALDL_Custom_Footprints:cap_pad"
@@ -2950,7 +2950,7 @@
 							)
 						)
 					)
-					(number "4"
+					(number "1"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2968,7 +2968,7 @@
 							)
 						)
 					)
-					(number "3"
+					(number "2"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -2986,7 +2986,7 @@
 							)
 						)
 					)
-					(number "2"
+					(number "3"
 						(effects
 							(font
 								(size 1.27 1.27)
@@ -3004,7 +3004,7 @@
 							)
 						)
 					)
-					(number "1"
+					(number "4"
 						(effects
 							(font
 								(size 1.27 1.27)

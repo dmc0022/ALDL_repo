@@ -4,6 +4,10 @@
 	(generator_version "9.0")
 	(uuid "c2e1bac7-4e06-4472-a1ae-b6ec0c989ebc")
 	(paper "A4")
+	(title_block
+		(date "2026-04-24")
+		(rev "0.7")
+	)
 	(lib_symbols
 		(symbol "CAP1188-1-CP-TR:CAP1188-1-CP-TR"
 			(pin_names
