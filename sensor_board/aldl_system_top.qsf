@@ -56,31 +56,31 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reset_n
 # LCD & backlight pins 
 # -----------------------------------------------------------
 # lcd_cs  -> AA9
-set_location_assignment PIN_AA9 -to lcd_cs
+set_location_assignment PIN_W11 -to lcd_cs
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_cs
 
 # lcd_rst -> Y8
-set_location_assignment PIN_Y8 -to lcd_rst
+set_location_assignment PIN_AB11 -to lcd_rst
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_rst
 
 # lcd_rs (D/C) -> AB10
-set_location_assignment PIN_AB10 -to lcd_rs
+set_location_assignment PIN_Y11 -to lcd_rs
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_rs
 
 # lcd_sck -> Y7
-set_location_assignment PIN_Y7 -to lcd_sck
+set_location_assignment PIN_AB13 -to lcd_sck
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_sck
 
 # lcd_mosi -> AA8
-set_location_assignment PIN_AA8 -to lcd_mosi
+set_location_assignment PIN_AB12 -to lcd_mosi
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to lcd_mosi
 
 # bl_pwm -> AA7
-set_location_assignment PIN_AA7 -to bl_pwm
+set_location_assignment PIN_W12 -to bl_pwm
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to bl_pwm
 
 # sd_cs -> Y5
-set_location_assignment PIN_Y5 -to sd_cs
+set_location_assignment PIN_W5 -to sd_cs
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_cs
 
 # -----------------------------------------------------------
@@ -88,19 +88,19 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sd_cs
 # -----------------------------------------------------------
 
 # CTP_INT  -> W9
-set_location_assignment PIN_W9 -to CTP_INT
+set_location_assignment PIN_AA15 -to CTP_INT
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_INT
 
 # CTP_SDA  -> W10
-set_location_assignment PIN_W10 -to CTP_SDA
+set_location_assignment PIN_W9 -to CTP_SDA
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_SDA
 
 # CTP_RST  -> AA6
-set_location_assignment PIN_AA6 -to CTP_RST
+set_location_assignment PIN_AA14 -to CTP_RST
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_RST
 
 # CTP_SCL  -> V10
-set_location_assignment PIN_V10 -to CTP_SCL
+set_location_assignment PIN_V9 -to CTP_SCL
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CTP_SCL
 
 
@@ -276,8 +276,8 @@ set_location_assignment PIN_B11 -to LEDR[9]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[9]
 
 # TMP117 QWIIC I2C Bus
-set_location_assignment PIN_AB2 -to TMP_SCL
-set_location_assignment PIN_AA2 -to TMP_SDA
+set_location_assignment PIN_V7 -to TMP_SCL
+set_location_assignment PIN_W7 -to TMP_SDA
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to TMP_SCL
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to TMP_SDA
