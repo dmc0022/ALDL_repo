@@ -7,8 +7,10 @@ Advanced Logic Design Lab (ALDL) project.
 - Accel-Demo: Accelerometer modules and demo
 - CAP1188: Capacitive touch sensor demos
 - HUB75: RGB LED matrix driver and animations
-- LCD_Display: ILI9341 LCD + Breakout game renderer + keypad touch event handler/renderer
+- LCD_Display: ILI9341 LCD + Breakout game renderer + keypad touch event handler/renderer 
 - Schematics: Hardware schematics and PCB files
+- Sensor Board: Comprehensive top file for both the LCD and CAP1188 board. Includes interfacing with the breakout connectors with a TMP117 temperature sensor via I2C.
+- 3D-Models: Most recent version of both daughter boards.
 
 Each module is self-contained and includes its own Quartus project files.
 
