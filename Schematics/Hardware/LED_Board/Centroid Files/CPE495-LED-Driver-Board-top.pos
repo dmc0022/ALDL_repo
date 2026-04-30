@@ -1,0 +1,13 @@
+### Footprint positions - created on 2026-04-25T14:09:37-0500 ###
+### Printed by KiCad version 9.0.5
+## Unit = mm, Angle = deg.
+## Side : top
+# Ref       Val                  Package                                PosX       PosY       Rot  Side
+Alinx-J2    Conn_02x20_Odd_Even  IDC-Header_2x20_P2.54mm_Vertical   156.2710   -77.2133    0.0000  top
+C1          0.1uF                C_0805_2012Metric                  180.0200   -90.1700    0.0000  top
+C2          0.1uF                C_0805_2012Metric                  180.0200  -105.4100    0.0000  top
+J2          Conn_02x08_Odd_Even  IDC-Header_2x08_P2.54mm_Vertical   200.0130  -112.8650  180.0000  top
+Terasic-J1  Conn_02x20_Odd_Even  IDC-Header_2x20_P2.54mm_Vertical   142.8645   -77.1595    0.0000  top
+U1          74AHCT245            TSSOP-20_4.4x6.5mm_P0.65mm         176.5300   -95.2500    0.0000  top
+U2          74AHCT245            TSSOP-20_4.4x6.5mm_P0.65mm         176.5300  -110.4900    0.0000  top
+## End

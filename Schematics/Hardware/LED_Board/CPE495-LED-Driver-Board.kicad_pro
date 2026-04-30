@@ -491,7 +491,7 @@
       "idf": "",
       "netlist": "",
       "plot": "LED Driver Gerbers/",
-      "pos_files": "",
+      "pos_files": "Centroid Files/",
       "specctra_dsn": "",
       "step": "",
       "svg": "",
@@ -625,7 +625,7 @@
   "sheets": [
     [
       "50f80694-2895-4c6f-bc4b-3427089c781b",
-      "Root"
+      ""
     ]
   ],
   "text_variables": {}
