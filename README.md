@@ -10,7 +10,7 @@ Advanced Logic Design Lab (ALDL) project.
 - LCD_Display: ILI9341 LCD + Breakout game renderer + keypad touch event handler/renderer 
 - Schematics: Hardware schematics and PCB files
 - Sensor Board: Comprehensive top file for both the LCD and CAP1188 board. Includes interfacing with the breakout connectors with a TMP117 temperature sensor via I2C.
-- 3D-Models: Most recent version of both daughter boards.
+- 3D-Models: Models of standoffs for LCD display as well as otherr STL files and UAH logo
 
 Each module is self-contained and includes its own Quartus project files.
 
