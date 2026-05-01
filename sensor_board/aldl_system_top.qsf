@@ -276,8 +276,8 @@ set_location_assignment PIN_B11 -to LEDR[9]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[9]
 
 # TMP117 QWIIC I2C Bus
-set_location_assignment PIN_V7 -to TMP_SCL
-set_location_assignment PIN_W7 -to TMP_SDA
+set_location_assignment PIN_W6 -to TMP_SCL
+set_location_assignment PIN_V5 -to TMP_SDA
 
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to TMP_SCL
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to TMP_SDA
