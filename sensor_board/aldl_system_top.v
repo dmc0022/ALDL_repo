@@ -4,10 +4,10 @@
 module aldl_system_top #(
     parameter [6:0] CAP_ADDR0    = 7'h28,
     parameter [6:0] CAP_ADDR1    = 7'h29,
-    parameter [6:0] CAP_ADDR2    = 7'h00,
+    parameter [6:0] CAP_ADDR2    = 7'h2A,
     parameter       CAP_EN0      = 1'b1,
     parameter       CAP_EN1      = 1'b1,
-    parameter       CAP_EN2      = 1'b0,
+    parameter       CAP_EN2      = 1'b1,
     parameter [6:0] FT6336_ADDR  = 7'h38,
     parameter [6:0] TMP117_ADDR  = 7'h48
 )(
